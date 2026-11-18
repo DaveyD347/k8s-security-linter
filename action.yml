@@ -1,5 +1,5 @@
 name: "Kubernetes Security Linter"
-description: "Lint Kubernetes manifests and Helm charts for insecure pod settings, risky RBAC and missing limits, mapped to the CIS Kubernetes Benchmark."
+description: "Lint Kubernetes manifests and Helm charts for insecure pods, risky RBAC and missing limits (CIS Benchmark)"
 author: "DaveyD347"
 branding:
   icon: "shield"
