@@ -1,0 +1,32 @@
+# Copy to .github/workflows/k8s-security.yml in your repository.
+name: Kubernetes security lint
+
+on:
+  pull_request:
+    paths: ["k8s/**", "charts/**", "deploy/**"]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  security-events: write # only needed for upload-sarif
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Helm is preinstalled on GitHub-hosted Ubuntu runners; this pins a version.
+      - uses: azure/setup-helm@v4
+
+      - name: Lint manifests and Helm charts
+        uses: DaveyD347/k8s-security-linter@v1
+        with:
+          path: |
+            k8s
+            charts
+          fail-on: high
+          skip-rules: KSL010
+          helm-values: charts/app/values-prod.yaml
+          upload-sarif: true

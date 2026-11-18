@@ -1,0 +1,53 @@
+# Deliberately insecure examples. Run `k8slint examples/manifests` to see findings.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: legacy-api
+  namespace: default
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: legacy-api
+  template:
+    metadata:
+      labels:
+        app: legacy-api
+    spec:
+      hostNetwork: true
+      hostPID: true
+      containers:
+        - name: api
+          image: nginx:latest
+          ports:
+            - containerPort: 80
+              hostPort: 80
+          securityContext:
+            privileged: true
+            runAsUser: 0
+            capabilities:
+              add: ["SYS_ADMIN", "NET_RAW"]
+          volumeMounts:
+            - name: docker-sock
+              mountPath: /var/run/docker.sock
+      volumes:
+        - name: docker-sock
+          hostPath:
+            path: /var/run/docker.sock
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: nightly-report
+  namespace: reports
+spec:
+  schedule: "0 2 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: report
+              image: busybox
+              command: ["sh", "-c", "echo report"]

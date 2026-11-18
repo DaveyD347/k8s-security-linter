@@ -1,0 +1,158 @@
+name: "Kubernetes Security Linter"
+description: "Lint Kubernetes manifests and Helm charts for insecure pod settings, risky RBAC and missing limits, mapped to the CIS Kubernetes Benchmark."
+author: "DaveyD347"
+branding:
+  icon: "shield"
+  color: "blue"
+
+inputs:
+  path:
+    description: "Files or directories to scan, one per line or comma-separated. Directories are searched recursively and any folder with a Chart.yaml is rendered with `helm template`."
+    required: false
+    default: "."
+  fail-on:
+    description: "Fail the step when a finding is at or above this severity: low, medium, high, critical, or none."
+    required: false
+    default: "high"
+  skip-rules:
+    description: "Comma-separated rule IDs to skip, e.g. KSL010,KSL011."
+    required: false
+    default: ""
+  rules:
+    description: "Comma-separated rule IDs to run. Empty runs every rule."
+    required: false
+    default: ""
+  exclude:
+    description: "Comma-separated glob patterns of paths to ignore, e.g. tests/*,vendor/*."
+    required: false
+    default: ""
+  config:
+    description: "Path to a config file. Defaults to .k8slint.yaml in the working directory if it exists."
+    required: false
+    default: ""
+  helm:
+    description: "Render Helm charts with `helm template` before linting (true/false)."
+    required: false
+    default: "true"
+  helm-values:
+    description: "Comma-separated values files passed to `helm template`."
+    required: false
+    default: ""
+  sarif-file:
+    description: "Where to write SARIF results. Leave as-is and set upload-sarif to show findings in the Security tab."
+    required: false
+    default: "k8slint-results.sarif"
+  upload-sarif:
+    description: "Upload SARIF to GitHub code scanning (needs `security-events: write`)."
+    required: false
+    default: "false"
+  python-version:
+    description: "Python used to run the linter. Empty uses the runner's python3."
+    required: false
+    default: ""
+
+outputs:
+  findings:
+    description: "Total number of findings."
+    value: ${{ steps.lint.outputs.findings }}
+  critical:
+    description: "Number of critical findings."
+    value: ${{ steps.lint.outputs.critical }}
+  high:
+    description: "Number of high findings."
+    value: ${{ steps.lint.outputs.high }}
+  medium:
+    description: "Number of medium findings."
+    value: ${{ steps.lint.outputs.medium }}
+  low:
+    description: "Number of low findings."
+    value: ${{ steps.lint.outputs.low }}
+  sarif-file:
+    description: "Path of the SARIF file."
+    value: ${{ inputs.sarif-file }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      if: inputs.python-version != ''
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install k8s-security-linter
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        python3 -m venv "$RUNNER_TEMP/k8slint-venv"
+        "$RUNNER_TEMP/k8slint-venv/bin/pip" install --quiet --disable-pip-version-check "$ACTION_PATH"
+
+    - name: Check for Helm
+      if: inputs.helm == 'true'
+      shell: bash
+      run: |
+        if ! command -v helm >/dev/null 2>&1; then
+          echo "::warning title=k8s-security-linter::helm not found on this runner; Helm charts will be skipped. Add azure/setup-helm before this step."
+        fi
+
+    - name: Lint manifests
+      id: lint
+      shell: bash
+      env:
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_FAIL_ON: ${{ inputs.fail-on }}
+        INPUT_SKIP: ${{ inputs.skip-rules }}
+        INPUT_RULES: ${{ inputs.rules }}
+        INPUT_EXCLUDE: ${{ inputs.exclude }}
+        INPUT_CONFIG: ${{ inputs.config }}
+        INPUT_HELM: ${{ inputs.helm }}
+        INPUT_HELM_VALUES: ${{ inputs.helm-values }}
+        INPUT_SARIF: ${{ inputs.sarif-file }}
+      run: |
+        # Inputs arrive through env vars, never interpolated into the script,
+        # so a malicious path or rule list cannot inject shell commands.
+        args=(--fail-on "$INPUT_FAIL_ON" --github)
+        [ -n "$INPUT_SKIP" ]        && args+=(--skip "$INPUT_SKIP")
+        [ -n "$INPUT_RULES" ]       && args+=(--rules "$INPUT_RULES")
+        [ -n "$INPUT_EXCLUDE" ]     && args+=(--exclude "$INPUT_EXCLUDE")
+        [ -n "$INPUT_CONFIG" ]      && args+=(--config "$INPUT_CONFIG")
+        [ -n "$INPUT_HELM_VALUES" ] && args+=(--helm-values "$INPUT_HELM_VALUES")
+        [ -n "$INPUT_SARIF" ]       && args+=(--sarif-file "$INPUT_SARIF")
+        [ "$INPUT_HELM" != "true" ] && args+=(--no-helm)
+
+        paths=()
+        while IFS= read -r p; do
+          p="$(echo "$p" | xargs)"
+          [ -n "$p" ] && paths+=("$p")
+        done < <(printf '%s\n' "$INPUT_PATH" | tr ',' '\n')
+        [ ${#paths[@]} -eq 0 ] && paths=(.)
+
+        set +e
+        "$RUNNER_TEMP/k8slint-venv/bin/k8slint" "${args[@]}" -- "${paths[@]}"
+        code=$?
+        set -e
+        echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+        # Defer failing until after the SARIF upload so results still reach the Security tab.
+        if [ "$code" -eq 2 ]; then
+          echo "::error title=k8s-security-linter::linter error (see log above)"
+        fi
+
+    - name: Upload SARIF to code scanning
+      if: always() && inputs.upload-sarif == 'true' && inputs.sarif-file != ''
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ inputs.sarif-file }}
+        category: k8s-security-linter
+
+    - name: Enforce severity threshold
+      if: always() && steps.lint.outputs.exit-code != '0'
+      shell: bash
+      env:
+        CODE: ${{ steps.lint.outputs.exit-code }}
+        FAIL_ON: ${{ inputs.fail-on }}
+      run: |
+        if [ "$CODE" = "1" ]; then
+          echo "::error title=k8s-security-linter::findings at or above '$FAIL_ON' severity"
+        fi
+        exit 1

@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Unit tests (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.9", "3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install -e ".[dev]"
+      - run: pytest -q
+
+  action-secure:
+    name: Action passes on hardened manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: lint
+        uses: ./
+        with:
+          path: examples/manifests/secure-deployment.yaml
+          fail-on: low
+      - name: Expect zero findings
+        run: test "${{ steps.lint.outputs.findings }}" = "0"
+
+  action-insecure:
+    name: Action catches insecure manifests and Helm charts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - id: lint
+        uses: ./
+        with:
+          path: examples
+          fail-on: none
+      - name: Expect critical findings from both raw YAML and the Helm chart
+        env:
+          CRITICAL: ${{ steps.lint.outputs.critical }}
+        run: |
+          echo "critical findings: $CRITICAL"
+          test "$CRITICAL" -ge 4
+          grep -q '"uri": "examples/helm/insecure-app/templates/deployment.yaml"' k8slint-results.sarif
+
+      - id: gate
+        name: Gate should fail on insecure manifests
+        continue-on-error: true
+        uses: ./
+        with:
+          path: examples/manifests/insecure-deployment.yaml
+          fail-on: high
+      - name: Expect the gate to have failed
+        run: test "${{ steps.gate.outcome }}" = "failure"
