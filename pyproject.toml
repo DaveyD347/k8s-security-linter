@@ -8,7 +8,7 @@ version = "1.0.0"
 description = "Security linter for Kubernetes manifests and Helm charts, mapped to the CIS Kubernetes Benchmark"
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = ["PyYAML>=6.0"]
 keywords = ["kubernetes", "helm", "security", "linter", "github-action", "cis-benchmark", "rbac"]
 classifiers = [

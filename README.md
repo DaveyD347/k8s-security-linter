@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/DaveyD347/k8s-security-linter/actions/workflows/ci.yml/badge.svg)](https://github.com/DaveyD347/k8s-security-linter/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-![Python](https://img.shields.io/badge/python-3.9%2B-blue)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 
 A GitHub Action (and CLI) that catches insecure Kubernetes configuration **before it reaches a cluster**. It scans raw manifests and Helm charts for privileged containers, containers running as root, host namespace sharing, overly permissive RBAC, missing resource limits and more. Every rule maps to the [CIS Kubernetes Benchmark](https://www.cisecurity.org/benchmark/kubernetes) where one applies.
 
@@ -23,7 +23,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: DaveyD347/k8s-security-linter@v1
         with:
           path: k8s
@@ -40,7 +40,7 @@ permissions:
   security-events: write
 
 steps:
-  - uses: actions/checkout@v4
+  - uses: actions/checkout@v5
   - uses: DaveyD347/k8s-security-linter@v1
     with:
       path: .

@@ -76,7 +76,7 @@ runs:
   steps:
     - name: Set up Python
       if: inputs.python-version != ''
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ inputs.python-version }}
 
@@ -140,7 +140,7 @@ runs:
 
     - name: Upload SARIF to code scanning
       if: always() && inputs.upload-sarif == 'true' && inputs.sarif-file != ''
-      uses: github/codeql-action/upload-sarif@v3
+      uses: github/codeql-action/upload-sarif@v4
       with:
         sarif_file: ${{ inputs.sarif-file }}
         category: k8s-security-linter
