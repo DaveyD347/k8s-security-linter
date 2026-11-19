@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: DaveyD347/k8s-security-linter@v1
+      - uses: DaveyD347/k8s-security-linter@v1.0.0
         with:
           path: k8s
           fail-on: high
@@ -41,7 +41,7 @@ permissions:
 
 steps:
   - uses: actions/checkout@v5
-  - uses: DaveyD347/k8s-security-linter@v1
+  - uses: DaveyD347/k8s-security-linter@v1.0.0
     with:
       path: .
       upload-sarif: true
@@ -73,7 +73,7 @@ steps:
 
 ```yaml
 - id: k8slint
-  uses: DaveyD347/k8s-security-linter@v1
+  uses: DaveyD347/k8s-security-linter@v1.0.0
   with: { fail-on: none }
 - run: echo "Found ${{ steps.k8slint.outputs.high }} high-severity issues"
 ```
@@ -183,8 +183,9 @@ The test suite covers every rule, the loader, Helm rendering (with a stub `helm`
 ## Releasing
 
 ```bash
-git tag -a v1.0.0 -m "v1.0.0" && git push origin v1.0.0
-git tag -f v1 && git push -f origin v1   # move the major tag users reference
+git tag -a v1.0.1 -m "v1.0.1" && git push origin v1.0.1
+# optional: keep a moving major tag so users can write @v1
+git tag -f v1 && git push -f origin v1
 ```
 
 ## License
